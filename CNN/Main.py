@@ -7,6 +7,7 @@ import face_recognition
 import os
 import psutil
 import GPUtil
+import matplotlib.pyplot as plt  
 
 model = fasterrcnn_resnet50_fpn(pretrained=True)
 model.eval()  
@@ -44,13 +45,22 @@ waktu_cek_face_recognition = {}
 waktu = 0  
 last_update_time = time.time()
 highest_confidence = 0
+start_time = time.time()
 
-timeout_duration = 0
+
+timeout_duration = 2
 face_recognition_interval = 5
 
 frame_count = 0
 fps = 0
-last_time = time.time() 
+last_time = time.time()
+
+fps_array = []
+accuracy_array = []
+cpu_usage_array = []
+gpu_usage_array = []
+ram_usage_array = []
+vram_usage_array = []
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
@@ -117,9 +127,14 @@ while True:
                 last_update_time = time.time()
 
                 cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-                cv2.putText(frame, f"ID {person_id} | {name} | {accuracy:.2f}%",
-                            (int(x1), int(y1) - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                if 'accuracy' in locals():
+                    cv2.putText(frame, f"ID {person_id} | {name} | {accuracy:.2f}%",
+                                (int(x1), int(y1) - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                else:
+                    cv2.putText(frame, f"ID {person_id} | {name}",
+                                (int(x1), int(y1) - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
                 deteksi_terakhir[person_id] = time.time()
 
@@ -139,7 +154,13 @@ while True:
         gpu_name = gpu_info.name
         gpu_load = gpu_info.load * 100  
         gpu_memory_used = gpu_info.memoryUsed 
-        gpu_memory_total = gpu_info.memoryTotal  
+        gpu_memory_total = gpu_info.memoryTotal
+        gpu_usage_array.append(gpu_load)
+        vram_usage_array.append(gpu_memory_used)
+    else:
+        gpu_load = 0
+        gpu_memory_used = 0
+        gpu_memory_total = 0  
 
     frame_count += 1
     current_time = time.time()
@@ -148,7 +169,13 @@ while True:
     if elapsed_time >= 1.0:  
         fps = frame_count / elapsed_time 
         frame_count = 0 
-        last_time = current_time  
+        last_time = current_time
+        fps_array.append(fps)
+
+    accuracy_array.append(highest_confidence * 100)
+    cpu_usage_array.append(cpu_usage)
+    ram_usage_array.append(memory_info.percent)
+  
 
     cv2.putText(frame, f"GPU: {gpu_name}",
                 (10, 30),
@@ -185,3 +212,147 @@ while True:
 
 camera.release()
 cv2.destroyAllWindows()
+
+total_camera_time = time.time() - start_time
+
+#Debugging
+print(f"Total Kamera Menyala: {total_camera_time:.2f} detik")
+print(accuracy_array)
+print('\n')
+print(cpu_usage_array)
+print('\n')
+print(gpu_usage_array)
+print('\n')
+print(ram_usage_array)
+print('\n')
+print(vram_usage_array)
+print('\n')
+print(fps_array)
+
+min_length = min(len(accuracy_array), len(cpu_usage_array), len(gpu_usage_array), 
+                 len(ram_usage_array), len(vram_usage_array), len(fps_array))
+
+# Variabel untuk rata-rata setiap detik
+time_interval = 1  # waktu dalam detik
+elapsed_time = 0
+sum_accuracy = 0
+sum_cpu_usage = 0
+sum_gpu_usage = 0
+sum_ram_usage = 0
+sum_vram_usage = 0
+sum_fps = 0
+
+count_accuracy = 0
+count_cpu_usage = 0
+count_gpu_usage = 0
+count_ram_usage = 0
+count_vram_usage = 0
+count_fps = 0
+
+# Array untuk menyimpan rata-rata per detik
+average_accuracy_per_second = []
+average_cpu_usage_per_second = []
+average_gpu_usage_per_second = []
+average_ram_usage_per_second = []
+average_vram_usage_per_second = []
+average_fps_per_second = []
+
+# Iterasi melalui array metrik dan hitung rata-rata per detik
+for i in range(min_length):
+    sum_accuracy += accuracy_array[i]
+    sum_cpu_usage += cpu_usage_array[i]
+    sum_gpu_usage += gpu_usage_array[i]
+    sum_ram_usage += ram_usage_array[i]
+    sum_vram_usage += vram_usage_array[i]
+    sum_fps += fps_array[i]
+
+    count_accuracy += 1
+    count_cpu_usage += 1
+    count_gpu_usage += 1
+    count_ram_usage += 1
+    count_vram_usage += 1
+    count_fps += 1
+
+    elapsed_time += 1  # Asumsikan waktu berjalan 1 detik per iterasi
+
+    if elapsed_time >= time_interval:
+        # Hitung rata-rata untuk interval waktu saat ini
+        average_accuracy_per_second.append(sum_accuracy / count_accuracy)
+        average_cpu_usage_per_second.append(sum_cpu_usage / count_cpu_usage)
+        average_gpu_usage_per_second.append(sum_gpu_usage / count_gpu_usage)
+        average_ram_usage_per_second.append(sum_ram_usage / count_ram_usage)
+        average_vram_usage_per_second.append(sum_vram_usage / count_vram_usage)
+        average_fps_per_second.append(sum_fps / count_fps)
+
+        # Reset untuk interval berikutnya
+        sum_accuracy = 0
+        sum_cpu_usage = 0
+        sum_gpu_usage = 0
+        sum_ram_usage = 0
+        sum_vram_usage = 0
+        sum_fps = 0
+
+        count_accuracy = 0
+        count_cpu_usage = 0
+        count_gpu_usage = 0
+        count_ram_usage = 0
+        count_vram_usage = 0
+        count_fps = 0
+
+        elapsed_time = 0
+
+# Jika masih ada nilai yang tersisa setelah loop
+if count_accuracy > 0:
+    average_accuracy_per_second.append(sum_accuracy / count_accuracy)
+if count_cpu_usage > 0:
+    average_cpu_usage_per_second.append(sum_cpu_usage / count_cpu_usage)
+if count_gpu_usage > 0:
+    average_gpu_usage_per_second.append(sum_gpu_usage / count_gpu_usage)
+if count_ram_usage > 0:
+    average_ram_usage_per_second.append(sum_ram_usage / count_ram_usage)
+if count_vram_usage > 0:
+    average_vram_usage_per_second.append(sum_vram_usage / count_vram_usage)
+if count_fps > 0:
+    average_fps_per_second.append(sum_fps / count_fps)
+
+# Plot grafik untuk setiap metrik
+plt.figure(figsize=(12, 8))
+
+plt.subplot(3, 2, 1)
+plt.plot(range(len(average_accuracy_per_second)), average_accuracy_per_second, label='Average YOLO Accuracy (%)', color='green')
+plt.xlabel('Time (seconds)')
+plt.ylabel('Accuracy (%)')
+plt.title('Average YOLO Accuracy Over Time')
+
+plt.subplot(3, 2, 2)
+plt.plot(range(len(average_cpu_usage_per_second)), average_cpu_usage_per_second, label='Average CPU Usage (%)', color='blue')
+plt.xlabel('Time (seconds)')
+plt.ylabel('CPU Usage (%)')
+plt.title('Average CPU Usage Over Time')
+
+plt.subplot(3, 2, 3)
+plt.plot(range(len(average_gpu_usage_per_second)), average_gpu_usage_per_second, label='Average GPU Usage (%)', color='red')
+plt.xlabel('Time (seconds)')
+plt.ylabel('GPU Usage (%)')
+plt.title('Average GPU Usage Over Time')
+
+plt.subplot(3, 2, 4)
+plt.plot(range(len(average_ram_usage_per_second)), average_ram_usage_per_second, label='Average RAM Usage (%)', color='purple')
+plt.xlabel('Time (seconds)')
+plt.ylabel('RAM Usage (%)')
+plt.title('Average RAM Usage Over Time')
+
+plt.subplot(3, 2, 5)
+plt.plot(range(len(average_vram_usage_per_second)), average_vram_usage_per_second, label='Average VRAM Usage (MB)', color='orange')
+plt.xlabel('Time (seconds)')
+plt.ylabel('VRAM Usage (MB)')
+plt.title('Average VRAM Usage Over Time')
+
+plt.subplot(3, 2, 6)
+plt.plot(range(len(average_fps_per_second)), average_fps_per_second, label='Average FPS', color='cyan')
+plt.xlabel('Time (seconds)')
+plt.ylabel('FPS')
+plt.title('Average FPS Over Time')
+
+plt.tight_layout()
+plt.show()
